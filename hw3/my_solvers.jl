@@ -1,9 +1,183 @@
 using Plots # add Plots.jl from the package manager if you have not already done so.
+using Printf # for formatting text output
 
 # HW 1 starting script (if you want): contains function computeLU() - to compute an LU-factorization of square
 # matrix A, namely, A = LU, where L and U are lower and upper triangular matrices.
 
+#-------------------------HOMEWORK 2 FUNCTIONS------------------------------------------#
+#---------------------------------------------------------------------------------------#
+"""
+    conj_grad(A, x, b, ϵ, iter_max)
 
+Function that performs conjugate gradient algorithm given:
+    A - positive definite matrix
+    x_0 - initial guess
+    ϵ - tolerance
+    iter_max - maximum number of iterations
+
+Returns approximate solution to Ax = b, where relative err_R <= ϵ
+"""
+function conj_grad(A, x, b, ϵ, iter_max)
+    res_i = []
+    N = size(A, 1)
+    r = Matrix{Float64}(undef, N, 1)
+    r .= 0
+    r = r[:]
+
+    α = Matrix{Float64}(undef, N, 1)
+    α .= 0
+    α = α[:]
+
+    β = Matrix{Float64}(undef, N, 1)
+    β .= 0
+    β = β[:]
+
+    p = Matrix{Float64}(undef, N, 1)
+    p .= 0
+    p = p[:]
+
+    new_r = Matrix{Float64}(undef, 2, 1)
+    new_r .= 0
+    new_r = r[:]
+
+    new_x = 0
+
+    new_p = Matrix{Float64}(undef, 2, 1)
+    new_p .= 0
+    new_p = r[:]
+
+    r = b - A * x
+    p .= r
+
+    for i = 1:iter_max # march across columns
+        α = (r'*r) ./ (p'*A*p)
+        new_x = x + α .* p
+        x = new_x
+        new_r .= r - α .* A * p
+        β = (new_r' * new_r) ./ (r' * r)
+        if (err_R(A,x,b) <= ϵ)
+            display("converged")
+            return new_x
+        end
+        push!(res_i, (magnitude(A * x - b)))
+        r = new_r
+        new_p .= new_r + β .* p
+        p = new_p
+    end
+
+    return (new_x, res_i)
+end
+
+"""
+    conj_grad_test()
+
+This is a test function for the conjugate gradient algorithm.
+It solves a simple Ax = b using matrix and vectors of size 2 with a known solution
+"""
+function conj_grad_test()
+    N = 2
+    B = rand(N,N)
+
+    b = rand(N,1)
+    b = b[:]
+
+    A = Matrix{Float64}(undef, 2, 2)
+    A .= [4 1;1 3]
+    display(A)
+
+    x = Matrix{Float64}(undef, 2, 1)
+    x .= 0
+    x = x[:]
+    x = [2 1]
+    x = vec(x)
+    display(x)
+
+    b = Matrix{Float64}(undef, 2, 1)
+    b .= 0
+    b = [:]
+    b = [1 2]
+    b = vec(b)
+    display(b)
+
+    r = Matrix{Float64}(undef, 2, 1)
+    r .= 0
+    r = r[:]
+    display(r)
+
+    p = Matrix{Float64}(undef, 2, 1)
+    p .= 0
+
+    ϵ = 10^-6
+    iter_max = 2
+
+    x = conj_grad(A, x, b, ϵ, iter_max)
+    return x
+
+end
+
+"""
+    err_R(A, x, b)
+
+Function that calculates the relative error based on formula in assignment
+"""
+function err_R(A, x, b)
+    err_r = magnitude(A * x - b) / magnitude(x)
+    return err_r
+end
+
+"""
+    var_set(N)
+
+Function that prepares variables for conjugate gradient algorithm.
+Takes parameter N for size of matrix/vectors. Returns:
+    A - random matrix of size N made using A = I +B^T B, where I is the identity matrix and B is a rand(N,N) matrix
+    b - random vector of size N
+    x - 0 vector for initial guess
+"""
+function var_set(N)
+    ϵ = 10^-4
+    iter_max = 100
+    A = Matrix{Float64}(undef, N, N)
+
+    B = rand(N,N)
+    b = rand(N,1)
+    b = b[:]
+
+    x = rand(N,1)
+    x .= 0
+    x = x[:]
+
+    I = Matrix{Float64}(undef, N, N)
+    I .= 0
+
+    for i = 1:N
+        I[i,i] = 1
+    end
+    A .= I .+ B'B
+
+    return (A, b, x, ϵ, iter_max)
+end
+
+"""
+    magnitude(x)
+
+Performs magnitude calculation of vector
+"""
+function magnitude(x)
+    N = size(x, 1)
+    sum = 0
+    mag = 0
+    for i = 1:N
+        sum += (x[i])^2
+    end
+    mag = sqrt(sum)
+    return mag
+end
+#-------------------------END HOMEWORK 2 FUNCTIONS------------------------------------------#
+#-------------------------------------------------------------------------------------------#
+
+#-------------------------HOMEWORK 1 FUNCTIONS------------------------------------------#
+#---------------------------------------------------------------------------------------#
 """
     computeLU(A)
 Compute and return LU factorization `LU = A` of square matrix `A`.
@@ -246,44 +420,46 @@ function backward_sub(U, b)
     return x
 end
 
+#-------------------------END HOMEWORK 1 FUNCTIONS------------------------------------------#
+#-------------------------------------------------------------------------------------------#
 
-testSizes = [10, 100, 1000]
-y_time = []
+#-------------------------HOMEWORK 3 FUNCTIONS------------------------------------------#
+#---------------------------------------------------------------------------------------#
 
-A_10 = rand([1,10], testSizes[1], testSizes[1])
-b_10 = rand(10,1)
+function var_set(N)
+    A = Matrix{Float64}(undef, N, N)
+    A = rand(N,N)
 
-A_100 = rand([1,10], testSizes[2], testSizes[2])
-b_100 = rand(100,1)
+    y = rand(N,1)
+    y = y[:]
 
-A_1000 = rand([1,10], testSizes[3], testSizes[3])
-b_1000= rand(1000,1)
+    for i = 1:N
+        y[i] = 0
+    end
 
-A = Matrix{Float64}(undef, 3, 3)
-A .= [2 -1 -2;-4 6 3;-4 -2 8]
-
-
-temp = @timed LUPsolve(A_10, b_10)
-push!(y_time, temp[2])
-display(temp[2])
-
-temp = @timed LUPsolve(A_100, b_100)
-push!(y_time, temp[2])
-display(temp[2])
-
-temp = @timed LUPsolve(A_1000, b_1000)
-push!(y_time, temp[2])
-display(temp[2])
-
-#swap(A,3,1)
-#print(A_1000)
-#A_1000_time = @time luDoolittleDecomp(A_1000, 1000)
-#display(A_1000_time)
+    return (A, y)
+end
 
 
-scatter(testSizes, y_time, xlabel="Size of N", ylabel="Time", title = "Time as a function of N")
-savefig("testPlot.png")
+#-------------------------------------------------------------------------------------------#
+
+
+"""
+    main()
+
+"""
+function main()
+    N = 10
+    (A, y) = var_set(N)
+
+    display(A)
+    display(y)
+
+end
+
+main()
+
 #b = rand(3, 1)
 #
 #(L, U) = computeLU(A)
-#@assert L*U ≈ A
+#@assert A*x[iter_max] ≈ b

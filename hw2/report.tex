@@ -154,43 +154,245 @@
 \begin{document}
 
 \begin{center}
-\textbf{\large CIS 410/510 HW 1 - Brett Sumser%\footnote{Subject to change}
+\textbf{\large CIS 410/510 HW 2 - Brett Sumser%\footnote{Subject to change}
 }
 \end{center}\vskip1em
 
-For this homework assignment we had to use the LU-factorization algorithm in order to decompose a matrix into
-upper and lower triangular forms, and use back/forward substitution to solve for $x$ in $Ax=b$. I had issues with sickness and difficulties
-with the LU decomposition algorithm, but was able to implement most of the other functions. I also implemented a different algorithm called
-the Doolittle algorithm for LU matrix decomposition. Some of my difficulties were do to using the julia language for the first time, I am expecting
-to have less difficulties with it as the term continues.
+For the first part of this assignment, we have to implement the conjugate gradient descent algorithm. This algorithm is used
+to find a numerical solution for a system of linear equations where the matrix is positive definite. To check my implement for correctness,
+I implemented a test function that ran the algorithm on a small system where the solution was known.
 
 Here are the functions I was able to successfully implement:
+
 \begin{itemize}
-  \item find\_pivot()-This function uses the built in method findmax to slice the matrix and find the max entry in a column.
-    It returns the value of the entry and the index.
-  \item swap()-This function swaps two rows in a matrix by constructing the proper identity matrix and multiplying it by the input matrix.
-  \item luDoolittleDecomp(A,N)-This function is an implementation of the Doolittle Algorithm for a LU matrix decomposition.
-  \item LUPsolve()-I used my above implementation of the Doolittle algorithm to attempt to solve the LU decomposition. LUPsolve performs the decomposition, and then calls two different functions to perform the forward/backward substitution.
+  \item conj grad(A, x, b, $\epsilon$, item max) - This is my implementation of the conjugate gradient algorithm.
+    It takes a positive definite matrix A, an initial guess vector x, a tolerance \epsilon and a max iteration as arguments.
+
+  \item conj grad test() - This is a test implementation of the conjugate gradient algorithm, but it solves a known system with a size
+    N = 2. It calls the above function and compares the result against the known solution. This is how I checked that my implementation
+    was working correctly.
+
+  \item err R(A, x, b) - This function calculates the relative error, using a helper magnitude function to calculate:
+
+    $err_R = \frac{||Ax - b||}{||x||}$
+
+  \item var set(N) - This function sets the variables needed for the gradient algorithm, taking a size N and setting up the required vectors
+    and matrix.
+
+  \item magnitude(x) -This function takes a vector x and performs the 2-norm calculation.
+
 \end{itemize}
 
-Based on the below figure, it seems that the time for the LU decomposition increases dramatically when the size of the matrix is increased.
-Comparing a 10 element matrix vs a 1000 element matrix, the time needed more than quintuples! That is quite an increase, and seems in line with
-the $O(n^3)$ complexity described in class.
+From the below figure, it can be seen that up to $N = 1000$, the time is fairly consistent. But once you get up to $N = 10000$, the amount
+of time it takes for the algorithm to run increases by roughly 40x! I am not sure if I calculated my residuals correctly, but it seems like they grow
+cyclicly.
 
 \begin{figure}[h]
 \centering
 \includegraphics[scale=0.75]{testPlot.png}
 \end{figure}
 
+\begin{figure}[h]
+\centering
+\includegraphics[scale=0.75]{testPlotNew.png}
+\end{figure}
+
+\newpage
+
+For the second part of the assignment, I struggled with modifying forwards euler into a backwards implmentation. Admittedly, I spent most of the
+time for the assignment working on the conjugate gradient, and might have overestimated how easy the second part would be.
+I was able to plot a line for the function $g(x) = 17*e^(-3t)$, and it shoes that the values seem to converge appropriatly. I also was not sure
+how to plot a stable time step. I ended up using $\deltat = 0.5$.
+
+\begin{figure}[h]
+\centering
+\includegraphics[scale=0.75]{testPlotEulerForward.png}
+\end{figure}
+
 \newpage
 
 \begin{lstlisting}
+
 using Plots # add Plots.jl from the package manager if you have not already done so.
+using Printf # for formatting text output
 
 # HW 1 starting script (if you want): contains function computeLU() - to compute an LU-factorization of square
 # matrix A, namely, A = LU, where L and U are lower and upper triangular matrices.
 
+#-------------------------HOMEWORK 2 FUNCTIONS------------------------------------------#
+#---------------------------------------------------------------------------------------#
+"""
+    conj_grad(A, x, b, ϵ, iter_max)
 
+Function that performs conjugate gradient algorithm given:
+    A - positive definite matrix
+    x_0 - initial guess
+    ϵ - tolerance
+    iter_max - maximum number of iterations
+
+Returns approximate solution to Ax = b, where relative err_R <= ϵ
+"""
+function conj_grad(A, x, b, ϵ, iter_max)
+    res_i = []
+    N = size(A, 1)
+    r = Matrix{Float64}(undef, N, 1)
+    r .= 0
+    r = r[:]
+
+    α = Matrix{Float64}(undef, N, 1)
+    α .= 0
+    α = α[:]
+
+    β = Matrix{Float64}(undef, N, 1)
+    β .= 0
+    β = β[:]
+
+    p = Matrix{Float64}(undef, N, 1)
+    p .= 0
+    p = p[:]
+
+    new_r = Matrix{Float64}(undef, 2, 1)
+    new_r .= 0
+    new_r = r[:]
+
+    new_x = 0
+
+    new_p = Matrix{Float64}(undef, 2, 1)
+    new_p .= 0
+    new_p = r[:]
+
+    r = b - A * x
+    p .= r
+
+    for i = 1:iter_max # march across columns
+        α = (r'*r) ./ (p'*A*p)
+        new_x = x + α .* p
+        x = new_x
+        new_r .= r - α .* A * p
+        β = (new_r' * new_r) ./ (r' * r)
+        if (err_R(A,x,b) <= ϵ)
+            display("converged")
+            return new_x
+        end
+        push!(res_i, (magnitude(A * x - b)))
+        r = new_r
+        new_p .= new_r + β .* p
+        p = new_p
+    end
+
+    return (new_x, res_i)
+end
+
+"""
+    conj_grad_test()
+
+This is a test function for the conjugate gradient algorithm.
+It solves a simple Ax = b using matrix and vectors of size 2 with a known solution
+"""
+function conj_grad_test()
+    N = 2
+    B = rand(N,N)
+
+    b = rand(N,1)
+    b = b[:]
+
+    A = Matrix{Float64}(undef, 2, 2)
+    A .= [4 1;1 3]
+    display(A)
+
+    x = Matrix{Float64}(undef, 2, 1)
+    x .= 0
+    x = x[:]
+    x = [2 1]
+    x = vec(x)
+    display(x)
+
+    b = Matrix{Float64}(undef, 2, 1)
+    b .= 0
+    b = [:]
+    b = [1 2]
+    b = vec(b)
+    display(b)
+
+    r = Matrix{Float64}(undef, 2, 1)
+    r .= 0
+    r = r[:]
+    display(r)
+
+    p = Matrix{Float64}(undef, 2, 1)
+    p .= 0
+
+    ϵ = 10^-6
+    iter_max = 2
+
+    x = conj_grad(A, x, b, ϵ, iter_max)
+    return x
+
+end
+
+"""
+    err_R(A, x, b)
+
+Function that calculates the relative error based on formula in assignment
+"""
+function err_R(A, x, b)
+    err_r = magnitude(A * x - b) / magnitude(x)
+    return err_r
+end
+
+"""
+    var_set(N)
+
+Function that prepares variables for conjugate gradient algorithm.
+Takes parameter N for size of matrix/vectors. Returns:
+    A - random matrix of size N made using A = I +B^T B, where I is the identity matrix and B is a rand(N,N) matrix
+    b - random vector of size N
+    x - 0 vector for initial guess
+"""
+function var_set(N)
+    ϵ = 10^-4
+    iter_max = 100
+    A = Matrix{Float64}(undef, N, N)
+
+    B = rand(N,N)
+    b = rand(N,1)
+    b = b[:]
+
+    x = rand(N,1)
+    x .= 0
+    x = x[:]
+
+    I = Matrix{Float64}(undef, N, N)
+    I .= 0
+
+    for i = 1:N
+        I[i,i] = 1
+    end
+    A .= I .+ B'B
+
+    return (A, b, x, ϵ, iter_max)
+end
+
+"""
+    magnitude(x)
+
+Performs magnitude calculation of vector
+"""
+function magnitude(x)
+    N = size(x, 1)
+    sum = 0
+    mag = 0
+    for i = 1:N
+        sum += (x[i])^2
+    end
+    mag = sqrt(sum)
+    return mag
+end
+#-------------------------END HOMEWORK 2 FUNCTIONS------------------------------------------#
+#-------------------------------------------------------------------------------------------#
+
+#-------------------------HOMEWORK 1 FUNCTIONS------------------------------------------#
+#---------------------------------------------------------------------------------------#
 """
     computeLU(A)
 Compute and return LU factorization `LU = A` of square matrix `A`.
@@ -433,46 +635,160 @@ function backward_sub(U, b)
     return x
 end
 
+#-------------------------END HOMEWORK 1 FUNCTIONS------------------------------------------#
+#-------------------------------------------------------------------------------------------#
 
-testSizes = [10, 100, 1000]
-y_time = []
+"""
+    main()
 
-A_10 = rand([1,10], testSizes[1], testSizes[1])
-b_10 = rand(10,1)
+Main function to perform conjugate gradient at sizes N = 10, 100, 1000, 10000
+Also outputs a plot with time as a function of N
+"""
+function main()
+    y_time = []
+    testSizes = [10, 100, 1000]
+    @printf("starting loop for values")
+    for i = 1:size(testSizes,1)
+        (A, b, x, ϵ, iter_max) = var_set(testSizes[i])
+        temp = @timed (x, res_i) = conj_grad(A, x, b, ϵ, iter_max)
+        push!(y_time, temp[2])
+        @printf("done at N = %d\n", testSizes[i])
+    end
+    @printf("done\n")
+    res_i = []
+    step = rand(100,1)
+    step .= 0
+    step = step[:]
+    for i = 1:100
+        step[i] = i
+    end
+    (A, b, x, ϵ, iter_max) = var_set(1000)
+    (x, res_i) = conj_grad(A, x, b, ϵ, iter_max)
+    scatter(step, res_i, xlabel="Iteration", ylabel="Residual", title = "Residual as a function of iteration")
+    savefig("testPlotNew.png")
+end
 
-A_100 = rand([1,10], testSizes[2], testSizes[2])
-b_100 = rand(100,1)
+main()
 
-A_1000 = rand([1,10], testSizes[3], testSizes[3])
-b_1000= rand(1000,1)
-
-A = Matrix{Float64}(undef, 3, 3)
-A .= [2 -1 -2;-4 6 3;-4 -2 8]
-
-
-temp = @timed LUPsolve(A_10, b_10)
-push!(y_time, temp[2])
-display(temp[2])
-
-temp = @timed LUPsolve(A_100, b_100)
-push!(y_time, temp[2])
-display(temp[2])
-
-temp = @timed LUPsolve(A_1000, b_1000)
-push!(y_time, temp[2])
-display(temp[2])
-
-#swap(A,3,1)
-#print(A_1000)
-#A_1000_time = @time luDoolittleDecomp(A_1000, 1000)
-#display(A_1000_time)
-
-
-scatter(testSizes, y_time, xlabel="Size of N", ylabel="Time", title = "Time as a function of N")
-savefig("testPlot.png")
 #b = rand(3, 1)
 #
 #(L, U) = computeLU(A)
-#@assert L*U ≈ A
+#@assert A*x[iter_max] ≈ b
+
+using Plots
+
+# write forward Euler for the IVP system y' = f(t, y)
+# where y is a vector in R^n (i.e. has n components)
+
+function f(t,y)
+    return -3 * y
+end
+
+"""
+    my_forward_euler(t0, Tf, Δt, y0, f)
+
+Function to perform the forwards euler algorithm.
+"""
+function my_forward_euler(t0, Tf, Δt, y0, f)
+
+    # y0 has N components
+    N = size(y0)
+
+    M = Integer(Tf/Δt)  # M+1 total temporal nodes
+
+    t = Vector{Float64}(undef, M+1)
+    y = Matrix{Float64}(undef, N, M+1)
+
+    # fill in the initial condition:
+    t[1] = t0
+    y[:, 1] = y0
+
+    for n = 1:M # take N time steps
+        y[:, n+1] = y[:, n] + Δt*f(t[n],y[:, n])
+        t[n+1] = t[n] + Δt
+    end
+
+    return (t, y)
+end
+
+
+"""
+    my_backward_euler(t0, Tf, Δt, y0, f)
+
+Function to perform backwards euler algorithm.
+"""
+function my_backward_euler(t0, Tf, Δt, y0, f)
+    # y0 has N components
+    N = size(y0)
+
+    M = Integer(Tf/Δt)  # M+1 total temporal nodes
+
+    t = Vector{Float64}(undef, M+1)
+    y = Matrix{Float64}(undef, N, M+1)
+
+    # fill in the initial condition:
+    t[1] = t0
+    y[:, 1] = y0
+
+    for n = 1:M # take N time steps
+        y[:, n+1] = y[:, n] + Δt*f(t[n+1],y[:, n+1])
+        t[n+1] = t[n] + Δt
+    end
+    scatter(t, y, xlabel="time", ylabel="Y-value", title = "Y values as function of time step")
+    savefig("testPlotEuler.png")
+
+    return (t, y)
+end
+
+
+# Write forward Euler to solve the linear system IVP:
+# y' = Ay + b on 0 ≤ t ≤ Tf
+# with initial y0
+
+# Do this on particular example, where A = [-3 13; -5 -1]
+# y0 = [3; -10]
+
+t0 = 0
+y0 = [3; -10]
+
+#A = [-3 13;-5 -1]
+
+Tf = 4
+Δt = 0.5
+
+N = Integer(Tf/Δt) # N+1 total temporal nodes
+
+
+y = Matrix{Float64}(undef, 2, N+1)
+t = Vector{Float64}(undef, N+1)
+t[1] = 0
+# fill in initial condition:
+y[:, 1] = y0
+
+
+for n = 1:N  # take N time steps
+    y[:, n+1] = y[:, n] + Δt*-3*y[:, n]  # Forward Euler
+    t[n+1] = t[n] + Δt
+end
+
+
+#plot(t, y[1, :])  # plot first component of solution vector
+#plot!(t, y[2, :])  # plot second component
+
+# plot initial condition:
+p = plot([y[1, 1]], [y[2, 1]], marker=(:circle,5), color = :blue, legend = false)
+
+g(x) = 17*2.71828^(-3x)
+
+for n = 2:N+1
+    p = plot!([y[1, n]], [y[2, n]], marker=(:circle,5), color = :blue, legend = false)
+    display(p)
+    sleep(1)
+end
+plot!(g)
+savefig("testPlotEulerForward.png")
+
+my_backward_euler(t0, Tf, Δt, y0, f)
+
 \end{lstlisting}
 \end{document}
