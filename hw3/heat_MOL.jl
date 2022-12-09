@@ -86,7 +86,7 @@ t0 = 0
 
 # Replace below with a call to my_forward_euler_linear()
 # forward Euler: y_n+1 = y_n + Δt*(A*y_n + b(t_n))
-(t, y) = my_forward_euler_linear(t0, Tf, Δt, y0, A, b)
+(t, y) = my_forward_euler_linear(t0, Tf,round(10^-1, digits=5), y0, A, b)
 
 #for n = 1:M
 #    # Fill in boundary condition
@@ -107,5 +107,5 @@ for i = 1:M+1
     display(a)
 
     sleep(0.0002)
+    savefig("heatPlot1.png")
 end
-savefig("heatPlot.png")
